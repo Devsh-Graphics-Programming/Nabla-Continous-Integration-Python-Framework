@@ -19,7 +19,7 @@ class CITest:
     
     # here are the methods that need to be implemented in a derived class
     # must override 
-    def _impl_run_single_batch(self, executable:Path, command:list, config:dict) -> dict:
+    def _impl_run_single_batch(self, executable:Path, command:list, config:dict, batch_data: dict) -> dict:
         pass
 
 
@@ -96,7 +96,7 @@ class CITest:
             for struct in config_json['data']:
                 input_commands.append(struct['command'])
             self.log("Aggregating commands from " + config_json_filepath + ", obtained "+  str(input_commands))
-        return input_commands, config_json
+        return input_commands, config_json, config_json['data']
    
 
     def _change_working_dir(self, executable):
@@ -160,7 +160,7 @@ class CITest:
         if ci_pass_status:
             for index, config_json_filepath in enumerate(self.config_json_filepaths):
                 self.log(f"Starting test {str(index+1)}/{len(self.config_json_filepaths)} with config file {config_json_filepath}")
-                command_list, config = self._parse_config_json(config_json_filepath)
+                command_list, config, batches = self._parse_config_json(config_json_filepath)
                 path_to_change_cwd = Path(config_json_filepath).parent
                 self._change_working_dir(path_to_change_cwd)
                 profile_batch_results = []
@@ -176,7 +176,7 @@ class CITest:
                     executable = self._get_executable_from_command(split_command)
                     if self._validate_filepaths(executable):
                         try:
-                            batch_result = self._impl_run_single_batch(executable, split_command, config)
+                            batch_result = self._impl_run_single_batch(executable, split_command, config, batches[i])
                             self._change_working_dir(path_to_change_cwd) # reset cwd
                             batch_result['batch_index'] = i
                             if batch_result["status"] == 'failed':
