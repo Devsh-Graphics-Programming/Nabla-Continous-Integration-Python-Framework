@@ -4,6 +4,7 @@ import re
 import subprocess
 import filecmp
 import json
+import shlex
 from pathlib import *
 
 def get_git_revision_hash(repo_dir, branch = "HEAD") -> str:
@@ -13,16 +14,19 @@ def get_git_revision_hash(repo_dir, branch = "HEAD") -> str:
         print("Exception occured when getting commit hash\n"+str(ex))
     return "error"
 
+# Abstract class responsible for executing tests and saving their results
 class CITest:
     
     # here are the methods that need to be implemented in a derived class
     # must override 
-    def _impl_run_single(self, input_args) -> dict:
+    def _impl_run_single_batch(self, executable:Path, command:list, config:dict) -> dict:
         pass
 
+
     # optional override
-    def _impl_run_dummy_case(self):
+    def _impl_run_prerequisite_test(self):
         return None
+
 
     # optional override
     def _impl_append_summary(self, summary: dict):
@@ -33,6 +37,7 @@ class CITest:
         with open(fileLocation, "w+") as f:
             f.write(hash)
             self.log(f"Saved hash {hash} to file {fileLocation}")
+
 
     # compare if two files are equal, either by comparing if their hashes are  
     def _cmp_files(self, fileA, fileB, cmpByteByByte = False, cmpSavedHash = False, cmpSavedHashLocation = "", saveHash = False ):
@@ -58,13 +63,16 @@ class CITest:
             self._save_hash(hashA, cmpSavedHashLocation)
         return res
 
+
     def logwarn(self, object):
         self.log(object, "[WARNING]")
+
 
     def log(self, object, hint = "[INFO]"):
         if self.print_warnings:
             print(hint + " " + str(object))
             # maybe write to file
+
 
     # constructor
     def __init__(self, 
@@ -78,14 +86,17 @@ class CITest:
         self.nabla_dir = nabla_dir
         self.print_warnings = print_warnings
 
-    # opens and parses config.json provided for the test
+
     def _parse_config_json(self, config_json_filepath):
+        # opens and parses config.json provided for the test
+        input_commands = []
+        config_json = {}
         with open(config_json_filepath) as json_file:
-            self.config_json = json.load(json_file)
-            self.input_commands = []
-            for struct in self.config_json['data']:
-                self.input_commands.append(struct['command'])
-            self.log("Aggregating commands from " + config_json_filepath + ", obtained "+  str(self.input_commands))
+            config_json = json.load(json_file)
+            for struct in config_json['data']:
+                input_commands.append(struct['command'])
+            self.log("Aggregating commands from " + config_json_filepath + ", obtained "+  str(input_commands))
+        return input_commands, config_json
    
 
     def _change_working_dir(self, executable):
@@ -93,78 +104,99 @@ class CITest:
         os.chdir(self.working_dir) 
 
 
-    def _validate_filepaths(self, executable):
-        if not self.executable.exists():
+    def _save_json(self, jsonFilename, dict, indent = 2):
+        # turn a dictionary into json text and write to a file
+        self.log("Saving json file to " + str(Path(jsonFilename).absolute()))
+        with open(jsonFilename, "w+") as file:
+            file.write(json.dumps(dict, indent = indent))
+
+    
+    def _split_command(self, command) -> list:
+        # splits a shell command from a string into a list of arguments
+        return shlex.split(command)
+
+
+    def _get_executable_from_command(self, split_command : list) -> Path:
+        # default behavior extracts the first argument from command 
+        # but certain tests might want to return a different element
+        return Path(split_command[0])
+
+
+    def __try_run_prerequisite_test(self, summary) -> bool:
+        dummy_run_result = self._impl_run_prerequisite_test()
+        if dummy_run_result is not None:
+            summary["dummy_run_status"] = 'passed' if dummy_run_result else 'failed' 
+            if not dummy_run_result:
+                self.logwarn("Dummy test failed. Aborting any further tests")
+                return False
+        return True
+
+
+    def __init_summary_dict(self):
+        summary = { 
+            "commit": self.__get_commit_data(),
+            "datetime": datetime.datetime.now().strftime("%d/%m/%Y, %H:%M:%S"),
+            "pass_status": 'pending',
+            "identifier": self.test_name
+        }
+        self._impl_append_summary(summary)
+        return summary
+
+
+    def _validate_filepaths(self, executable: Path):
+        if not executable.exists():
             self.logwarn(f'Executable at path "{executable}" does not exist')
             return False
-        if not self.input.exists():
-            self.logwarn(f'Input file at path "{self.input}" does not exist')
-            return False
         return True
-    
 
-    def _save_json(self, jsonFilename, dict):
-        self.log("Saving json file to " + str(Path(jsonFilename).absolute()))
-        with open(jsonFilename, "w") as file:
-            file.write(json.dumps(dict, indent = 2))
 
-    #TODO fix this 
-    # def run(self):
-    #     self._validate_filepaths()
-    #     summary = { 
-    #         "commit": self.__get_commit_data(),
-    #         "datetime": datetime.datetime.now().strftime("%d/%m/%Y, %H:%M:%S"),
-    #         "pass_status": 'pending',
-    #         "identifier": self.test_name
-    #     }
-    #     self._impl_append_summary(summary)
-    #     test_results = []
-    #     failures = 0
-    #     ci_pass_status = True
-    #     summary["results"] = test_results
+    def run(self):
+        summary = self.__init_summary_dict()
+        test_profiles = []
+        failures_global = 0
+        ci_pass_status = self.__try_run_prerequisite_test(summary)
+        summary["profiles"] = test_profiles
 
-    #     dummy_run_result = self._impl_run_dummy_case()
-    #     if dummy_run_result is not None:
-    #         summary["dummy_run_status"] = 'passed' if dummy_run_result else 'failed' 
-    #         if not dummy_run_result:
-    #             ci_pass_status = False
-        
-    #     if not ((dummy_run_result is not None) and (not ci_pass_status)):
-    #         input_lines = self._get_input_lines()
-    #         summary["num_of_tests"] = len(input_lines)
-    #         testnum = 0
-    #         for line in input_lines:
-    #             try:
-    #                 #update index of the test
-    #                 testnum = testnum + 1
+        if ci_pass_status:
+            for index, config_json_filepath in enumerate(self.config_json_filepaths):
+                self.log(f"Starting test {str(index+1)}/{len(self.config_json_filepaths)} with config file {config_json_filepath}")
+                command_list, config = self._parse_config_json(config_json_filepath)
+                path_to_change_cwd = Path(config_json_filepath).parent
+                self._change_working_dir(path_to_change_cwd)
+                profile_batch_results = []
+                profile_result = {
+                    'test_count': len(command_list),
+                    'profile_index': index,
+                    'results': profile_batch_results
+                }                
+                test_profiles.append(profile_result)
 
-    #                 # run the test
-    #                 result = self._impl_run_single(line)
+                for i, command in enumerate(command_list):
+                    split_command = self._split_command(command)
+                    executable = self._get_executable_from_command(split_command)
+                    if self._validate_filepaths(executable):
+                        try:
+                            batch_result = self._impl_run_single_batch(executable, split_command, config)
+                            self._change_working_dir(path_to_change_cwd) # reset cwd
+                            batch_result['batch_index'] = i
+                            if batch_result["status"] == 'failed':
+                                summary["pass_status"] = "pending/failed"
+                                failures_global = failures_global + 1
+                                self.logwarn(f"Test failed for command {command} and profile {index}")
+                            else:
+                                self.log(f"Profile {index} command {i} finished with status {batch_result['status']}")
 
-    #                 # result is a dictionary, add additional fields
-    #                 result["index"] = testnum 
-    #                 is_failure = result["status"] == 'failed'
+                            profile_batch_results.append(batch_result)
+                            self._save_json(f"summary_{self.alphanumeric_only_test_name}.json",summary)
 
-    #                 if is_failure:
-    #                     ci_pass_status = False
-    #                     summary["pass_status"] = "pending/failed"
-    #                     failures = failures + 1
-    #                     if self.print_warnings:
-    #                         print(f"[WARN] input {line} is not passing the tests!")
-    #                 else:
-    #                     if self.print_warnings:
-    #                         print(f"[INFO] input {line} PASSED")
-    #                 test_results.append(result)
-    #                 self._save_json(f"summary_{self.alphanumeric_only_test_name}.json",summary)
-    #             except Exception as ex:
-    #                 print(f"[ERROR] Critical exception occured during testing input {line}: {str(ex)}")
-    #                 ci_pass_status = False
-    #                 summary["critical_errors"] = f"{line}: {str(ex)}"
-    #                 break
-    #     summary["failure_count"] = failures 
-    #     summary["pass_status"] = 'passed' if ci_pass_status else 'failed'  
-    #     self._save_json(f"summary_{self.alphanumeric_only_test_name}.json",summary)
-    #     return ci_pass_status
+                        except Exception as ex:
+                            print(f"[ERROR] Critical exception occured. Command: {command}\n Error: {str(ex.with_traceback())}")
+                            ci_pass_status = False
+       
+        summary["failure_count"] = failures_global 
+        summary["pass_status"] = 'passed' if ci_pass_status else 'failed'  
+        self._save_json(f"summary_{self.alphanumeric_only_test_name}.json",summary)
+        return ci_pass_status
 
 
     def __get_commit_data(self):
