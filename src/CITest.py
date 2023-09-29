@@ -82,7 +82,7 @@ class CITest:
                 print_warnings = True):
         self.test_name = test_name
         self.alphanumeric_only_test_name = re.sub(r"[^A-z0-9]+", "_", test_name).strip("_") #remove all non alphanumeric characters 
-        self.config_json_filepaths = config_json_filepaths if config_json_filepaths is list else [config_json_filepaths]
+        self.config_json_filepaths = config_json_filepaths if type(config_json_filepaths) is list else [config_json_filepaths]
         self.nabla_dir = nabla_dir
         self.print_warnings = print_warnings
 
@@ -91,6 +91,7 @@ class CITest:
         # opens and parses config.json provided for the test
         input_commands = []
         config_json = {}
+        self.log(config_json_filepath,"[DEBUG]")
         with open(config_json_filepath) as json_file:
             config_json = json.load(json_file)
             for struct in config_json['data']:
@@ -99,8 +100,8 @@ class CITest:
         return input_commands, config_json, config_json['data']
    
 
-    def _change_working_dir(self, executable):
-        self.working_dir = executable.parent.absolute()
+    def _change_working_dir(self, path):
+        self.working_dir = path
         os.chdir(self.working_dir) 
 
 
@@ -145,7 +146,7 @@ class CITest:
 
     def _validate_filepaths(self, executable: Path):
         if not executable.exists():
-            self.logwarn(f'Executable at path "{executable}" does not exist')
+            self.logwarn(f'Executable at path "{executable.absolute()}" does not exist')
             return False
         return True
 
@@ -156,12 +157,11 @@ class CITest:
         failures_global = 0
         ci_pass_status = self.__try_run_prerequisite_test(summary)
         summary["profiles"] = test_profiles
-
         if ci_pass_status:
             for index, config_json_filepath in enumerate(self.config_json_filepaths):
                 self.log(f"Starting test {str(index+1)}/{len(self.config_json_filepaths)} with config file {config_json_filepath}")
                 command_list, config, batches = self._parse_config_json(config_json_filepath)
-                path_to_change_cwd = Path(config_json_filepath).parent
+                path_to_change_cwd = os.path.dirname(config_json_filepath)   #Path(config_json_filepath)
                 self._change_working_dir(path_to_change_cwd)
                 profile_batch_results = []
                 profile_result = {
