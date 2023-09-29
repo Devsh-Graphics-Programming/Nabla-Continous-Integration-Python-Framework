@@ -1,9 +1,0 @@
-[project]
-name = "Nabla_test_python_framework"
-version = "0.0.1"
-description = "test"
-requires-python = ">=3.7"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "Operating System :: OS Independent",
-]
