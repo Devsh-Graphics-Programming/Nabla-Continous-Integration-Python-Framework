@@ -1,6 +1,6 @@
-from CITest import *
+from ITest import *
 
-class ConsoleOutputTestExpectedFileAsDependency(CITest):
+class ExpectedFileAsDependencyTest(ITest):
 
     def __init__(self, test_name: str, config_json_filepaths, nabla_dir=None, print_warnings=True):
         super().__init__(test_name, config_json_filepaths, nabla_dir, print_warnings)

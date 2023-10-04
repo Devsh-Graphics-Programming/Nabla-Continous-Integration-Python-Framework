@@ -15,7 +15,7 @@ def get_git_revision_hash(repo_dir, branch = "HEAD") -> str:
     return "error"
 
 # Abstract class responsible for executing tests and saving their results
-class CITest:
+class ITest:
     
     # here are the methods that need to be implemented in a derived class
     # must override 
@@ -201,7 +201,7 @@ class CITest:
 
     def __get_commit_data(self):
         if self.nabla_dir is None:
-            self.logwarn("Because nabla_dir was not assigned in CITest constructor, commit data will be empty")
+            self.logwarn("Because nabla_dir was not assigned in ITest constructor, commit data will be empty")
             return {
                 'hash' : "n/a",
                 'author': "n/a",
