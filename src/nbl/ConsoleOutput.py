@@ -1,4 +1,4 @@
-from ITest import *
+from .ITest import *
 
 class ExpectedFileAsDependencyTest(ITest):
 

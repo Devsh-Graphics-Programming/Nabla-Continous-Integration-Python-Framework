@@ -2,6 +2,6 @@
 
 # Nabla Python Framework source import script
 
-import nbl.ITest
-import nbl.Utils
-import nbl.ConsoleOutput
+from .nbl.ConsoleOutput import *
+from .nbl.ITest import *
+from .nbl.Utils import *
