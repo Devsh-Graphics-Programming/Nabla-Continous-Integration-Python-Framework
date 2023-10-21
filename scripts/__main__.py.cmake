@@ -4,18 +4,17 @@
 # Nabla Python Framework module and runs the target's testing interface implementation
 
 # Example of usage
-# 1) runAllTests.py
+# 1) python3 -m <reference to this module>
 #	- runs all profiles found, goes through all batches found in a profile being processed
-# 2) runAllTests.py <profile path/index> [OPTIONAL] <batch index/range of batches> ... [OPTIONAL] <batch index/range of batches>
+# 2) python3 -m <reference to this module> <profile path/index> [OPTIONAL] <batch index/range of batches> ... [OPTIONAL] <batch index/range of batches>
 #	- runs given profile, if batch index (or range of batches) is given then it will process only the index of the batch (or the range)
 
-import sys
-import os
+import sys, os
 
-os.chdir(os.path.dirname(__file__))
+testModulePath = os.path.dirname(__file__)
+nblPythonFrameworkModulePath =  os.path.abspath(os.path.join(testModulePath, "@NBL_PYTHON_FRAMEWORK_MODULE_PATH_REL@"))
 
-sys.path.append("@NBL_PYTHON_FRAMEWORK_MODULE_PATH_REL@") # relative path to Nabla's Python Framework module, relocatable
-sys.path.append("@NBL_TEST_TARGET_MODULE_PATH_REL@") # relative path to a test target interface module, relocatable
+sys.path.append(nblPythonFrameworkModulePath) # relative path to Nabla's Python Framework module, relocatable
 
-import @NBL_TEST_TARGET_INTERFACE_SCRIPT_NAME@
-@NBL_TEST_TARGET_INTERFACE_SCRIPT_NAME@.main() # each test target implements its testing interface by overriding common one in Nabla Python Framework module
+from .@NBL_TEST_TARGET_MODULE_PATH_REL@.@NBL_TEST_TARGET_INTERFACE_SCRIPT_NAME@ import main
+main() # each test target implements its testing interface by overriding common one in Nabla Python Framework module
