@@ -94,10 +94,10 @@ class ITest:
         self.log(config_json_filepath,"[DEBUG]")
         with open(config_json_filepath) as json_file:
             config_json = json.load(json_file)
-            for struct in config_json['data']:
+            for struct in config_json['input']['data']:
                 input_commands.append(struct['command'])
             self.log("Aggregating commands from " + config_json_filepath + ", obtained "+  str(input_commands))
-        return input_commands, config_json, config_json['data']
+        return input_commands, config_json, config_json['input']['data']
    
 
     def _change_working_dir(self, path):
@@ -187,16 +187,21 @@ class ITest:
                                 self.log(f"Profile {index} command {i} finished with status {batch_result['status']}")
 
                             profile_batch_results.append(batch_result)
-                            self._save_json(f"summary_{self.alphanumeric_only_test_name}.json",summary)
+                            # self._save_json(f"../summary_{self.alphanumeric_only_test_name}.json",summary) # TODO make optional to save after every batch
 
                         except Exception as ex:
-                            print(f"[ERROR] Critical exception occured. Command: {command}\n Error: {str(ex.with_traceback())}")
+                            print(f"[ERROR] Critical exception occured. Command: {command}\n Error: {str(ex)}")
                             ci_pass_status = False
+                            raise ex
        
         summary["failure_count"] = failures_global 
         summary["pass_status"] = 'passed' if ci_pass_status else 'failed'  
-        self._save_json(f"summary_{self.alphanumeric_only_test_name}.json",summary)
+        self._save_json(f"../summary_{self.alphanumeric_only_test_name}.json",summary)
         return ci_pass_status
+
+
+    def _get_dependencies(self, batch_data, config):
+        return batch_data["dependencies"] + config["input"]["dependencies"]
 
 
     def __get_commit_data(self):

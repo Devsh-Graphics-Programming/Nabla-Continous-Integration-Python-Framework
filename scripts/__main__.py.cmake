@@ -16,5 +16,12 @@ nblPythonFrameworkModulePath =  os.path.abspath(os.path.join(testModulePath, "@N
 
 sys.path.append(nblPythonFrameworkModulePath) # relative path to Nabla's Python Framework module, relocatable
 
+profile_count = sum(map(lambda arg: arg=="-c", sys.argv))
+profile_path = os.path.join(testModulePath, ".profiles")
+profile_args = list(map(lambda filename: os.path.join(profile_path, filename),\
+    filter(lambda file: file.endswith(".json"), os.listdir(profile_path))))\
+        if profile_count==0 else None
+repository_path = os.path.abspath(os.path.join(testModulePath, "@NBL_ROOT_PATH_REL@"))
+
 from .@NBL_TEST_TARGET_MODULE_PATH_REL@.@NBL_TEST_TARGET_INTERFACE_SCRIPT_NAME@ import main
-main() # each test target implements its testing interface by overriding common one in Nabla Python Framework module
+main(None, profile_args, repository_path, True) # each test target implements its testing interface by overriding common one in Nabla Python Framework module
